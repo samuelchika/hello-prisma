@@ -6,3 +6,5 @@ node_modules
 .flaskenv*
 !.env.project
 !.env.vault
+
+cred*

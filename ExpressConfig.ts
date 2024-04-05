@@ -2,7 +2,8 @@
 import express from "express"
 import { errorHandler, unknownRoute } from "./errors"
 import auth from './routes/auth';
-
+import gallery from './routes/gallery';
+import event from './routes/event';
 
 //import project dependencies
 
@@ -17,6 +18,8 @@ app.use(express.json())
 
 // Routes
 app.use("/auth", auth);
+app.use("/event", event);
+app.use("/gallery", gallery);
 
 // Error Handling
 app.use(unknownRoute)

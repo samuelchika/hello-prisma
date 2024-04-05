@@ -1,6 +1,6 @@
 import { Response, Request, Router, NextFunction } from "express";
-import { generateChangePasswordEmail, generateRegEmail, generateToken, generateValidatedEmail, hashPassword, verifyPassword } from "../utils";
-import { PrismaClient } from "@prisma/client";
+import { generateChangePasswordEmail, generateChangedPasswordEmail, generateRegEmail, generateToken, generateValidatedEmail, hashPassword, verifyPassword } from "../utils";
+import { PrismaClient, User } from "@prisma/client";
 import { authenticated } from "../middleware";
 import Email from "../utils/Email";
 import { UserProps } from "../lib";
@@ -18,7 +18,7 @@ router.post("/register", async (req:Request, res: Response, next: NextFunction) 
       data: {
         ...userData
       }
-    })
+    });
     const token = await generateToken(req.body, "2 hours");
     // send an email to the person to verify their account.
     const emailOption = {
@@ -30,8 +30,11 @@ router.post("/register", async (req:Request, res: Response, next: NextFunction) 
     } 
     const email = new Email();
     const sent = await email.sendEmail(emailOption);
-    return sent ? res.status(201).json({ user, success: true, message: "User account created successfully!"}) : res.status(201).json({ user, success: true, message: "User account created but contact admin if you don't receive a verification email!"})
+    const payload: any = user
+    delete payload.password;
+    return sent ? res.status(201).json({ payload, success: true, message: "User account created successfully!"}) : res.status(201).json({ payload, success: true, message: "User account created but contact admin if you don't receive a verification email!"})
   } catch (error) {
+    console.log(error)
     next(error)
   }
 })
@@ -57,7 +60,7 @@ router.post("/verify_account", authenticated, async (req:Request | any, res: Res
       to: req.user?.email, 
       subject: "Account Verification 🔓", 
       text: "Hello world?", 
-      html: generateValidatedEmail(req.body.firstname),
+      html: generateValidatedEmail(req.user.firstname),
     } 
 
     const email = new Email();
@@ -69,7 +72,7 @@ router.post("/verify_account", authenticated, async (req:Request | any, res: Res
 })
 
 
-router.post("/login",async (req, res: Response, next: NextFunction) => {
+router.post("/login",async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = await prisma.user.findUnique({
       where: { email: req.body.email}
@@ -78,8 +81,12 @@ router.post("/login",async (req, res: Response, next: NextFunction) => {
     if (!user) {
       return res.status(401).json({success: false, message: "Invalid Credential"});
     } 
+
+    if(!user.active){
+      return res.status(401).json({success: false, message: "Please verify your account from your email. If link have expire, contact Admin"});
+    }
     const hashedPassword = user.password || ''
-    const isValid = user && verifyPassword(req.body.password, hashedPassword)
+    const isValid = user && await verifyPassword(req.body.password, hashedPassword)
     if (isValid) {
       // generate the token
       const payload: UserProps | any = user;
@@ -96,14 +103,23 @@ router.post("/login",async (req, res: Response, next: NextFunction) => {
 
 router.post("/forgot_password", async (req:Request, res: Response, next: NextFunction) => {
   try {
-    const token = await generateToken(req.body.email, "2 hours")
+    
     // send email using the token.
+    const user = await prisma.user.findUnique({
+      where: { email: req.body.email}
+    })
+    if(!user) {
+      return res.status(200).json({success: true, message: "If your account exist, a reset password link will be sent to you."})
+    }
+    const payload = { email: req.body.email };
+    const token = await generateToken(payload, "2 hours")
+    const link = `${process.env.FRONTEND}/change_password/${token}`
     const emailOption = {
       from: `"RCCG Excel Parish " <${process.env.SMTP_USER}>`, 
       to: req.body.email, 
       subject: "Account Verification 🔓", 
       text: "Hello world?", 
-      html: generateChangePasswordEmail(req.body.firstname, token),
+      html: generateChangePasswordEmail(user?.firstname, link),
     } 
     const email = new Email();
     await email.sendEmail(emailOption)
@@ -116,6 +132,16 @@ router.post("/forgot_password", async (req:Request, res: Response, next: NextFun
 
 router.post("/change_password", async (req:Request, res: Response, next: NextFunction) => {
   try {
+    // confirm password and confirm password match
+    if (req.body.password !== req.body.confirm_password) {
+      return res.status(200).json({status: false, message: "Password Mismatch!"})
+    }
+    const user = await prisma.user.findUnique({
+      where: { email: req.body.email}
+    })
+    if(!user) {
+      return res.status(200).json({success: true, message: "If your account exist, a reset password link will be sent to you."})
+    }
     const hashedPassword = await hashPassword(req.body.password)
     await prisma.user.update({
       where: {
@@ -127,6 +153,16 @@ router.post("/change_password", async (req:Request, res: Response, next: NextFun
     });
 
     // report via email if it was not your. 
+    const token = await generateToken({email: req.body.email}, "2 hours");
+    const emailOption = {
+      from: `"RCCG Excel Parish " <${process.env.SMTP_USER}>`, 
+      to: req.body.email, 
+      subject: "Account Verification 🔓", 
+      text: "Hello world?", 
+      html: generateChangedPasswordEmail(user.firstname, token),
+    } 
+    const email = new Email();
+    await email.sendEmail(emailOption)
     return res.status(200).json({ success: true, message: "Password Changed successfully"})
   } catch (error) {
     next(error)
