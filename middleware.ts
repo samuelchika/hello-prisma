@@ -1,38 +1,21 @@
-import { createPrivateKey, generateKeyPairSync  } from "crypto"
-import { V4 } from "paseto";
-
-const payload = {
-    username: "Sam",
-};
-
-export default async function testPaseto () {
-    const {publicKey, privateKey } = generateKeyPairSync('ed25519', 
-    {
-        modulusLength: 4096,
-        publicKeyEncoding: {
-        type: 'spki',
-        format: 'pem'
-        },
-        privateKeyEncoding: {
-        type: 'pkcs8',
-        format: 'pem',
-        cipher: 'aes-256-cbc',
-        passphrase: ''
+import { NextFunction, Request, Response } from "express"
+import { verifyToken } from "./utils"
+export const authenticated = async (req: Request | any, res: Response, next: NextFunction) => {
+    try {
+        console.log(req.headers.authorization.split(" ")[1])
+        const token: string = req.headers.authorization.split(" ")[1] || "";
+        const validate = await verifyToken(token)
+        if (validate.valid) {
+            // user token is valid
+            req.user = validate.payload
+            return next();
         }
-    });
-
-    console.log(publicKey, privateKey)
-    // const keyObject = createPrivateKey({  
-    //     key: privateKey,
-    //     format: "pem",
-    //     type: "pkcs1",
-    //     passphrase: "",
-    //     encoding: "utf-8"
-    // });
-    const token = await V4.sign(payload, privateKey, {
-        audience: 'urn:example:client',
-        issuer: 'https://op.example.com',
-        expiresIn: '2 hours'
-      })
-    console.log(token)
-}
+        return res.status(401).json({...validate});
+    } catch (error) {
+        if(req.path.includes("verify")) {
+            // this means its has to do with verification of password
+            return res.status(401).json({ success: false, message: "Contact Admin via email. Token expired or Get new Token"})
+        }
+        return res.status(401).json({ success: false, message: "Please Login"})
+    }
+} 
