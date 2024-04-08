@@ -1,77 +1,86 @@
 import { Response, Request, Router, NextFunction } from "express";
 import { PrismaClient, User } from "@prisma/client";
-
-import path from "path";
-import stream from 'stream';
-import multer from 'multer';
-import { authenticated } from "../middleware";
 import Email from "../utils/Email";
 
-// @ts-ignore
-import {google} from 'googleapis';
-// import * as docs from '@googleapis/docs'
+import { authenticated } from "../middleware";
+import { eventUpload } from "../middleware";
+
+import { generateEventEmail } from "../utils";
 
 const router = Router();
-const upload = multer();
 
 const prisma = new PrismaClient();
 
-const KEYFILEPATH = path.join(__dirname, "../cred.json");
-const SCOPE = ["https://www.googleapis.com/auth/drive"];
-// eslint-disable-next-line import/no-extraneous-dependencies
-const auth = new google.auth.GoogleAuth({
-    keyFile: KEYFILEPATH,
-    scopes: SCOPE
-});
 
-router.post("/", upload.single('image'), async (req:Request | any, res: Response, next: NextFunction) => {
+router.post("/", authenticated, eventUpload.single('image'), async (req:Request | any, res: Response, next: NextFunction) => {
     try {
-        
-        const drive = google.drive({version: 'v3', auth: auth});
-        const fileMetaData = {
-            name: req.file.originalname,
-            parents: ["12ab1TBtMJclXssnr4gjicZWtLdVYhvq4"]
-        }
-        // readable stream
-        const bufferStream = new stream.PassThrough();
-        bufferStream.end(req.file.buffer);
-
-        // create a media from the stream file
-        const media = {
-            mimeType: req.file.mimetype,
-            body: bufferStream
-        }
-        const file = await drive.files.create({
-            requestBody: fileMetaData,
-            media
-        });
-        
-        // how to acces the file
-        //const imageUrl1 = `https://drive.google.com/uc?export=view&id=${file.data.id}`;
-        const image = `https://drive.google.com/file/d/${file.data.id}`;
-        console.log("URL 1: ", image)
-        // image is now uploaded
-        const payload = { ...req.body, image }
-        console.log(payload)
+        // get the request body
+        const payload = { ...req.body, image: req.file.filename}
         const event = await prisma.event.create({
             data: payload
         });
+        // get the email of everyone subscribed to mail them of the upcoming event.
+        const subscribed = await prisma.subscribe.findMany();
+        const email = new Email();
         
-        return res.status(200).json({status: 'success', event })
-        
+        subscribed.forEach(async ({ email: subscriberEmail }) => {
+            const emailOption =  {
+                from: `"RCCG Excel Parish " <${process.env.SMTP_USER}>`, 
+                to: subscriberEmail, 
+                subject: event.title, 
+                html: generateEventEmail(event.title, event.description.substring(30), `${process.env.FRONTEND}/event/${event.id}`),
+            }
+            await email.sendEmail(emailOption);          
+        })
+        res.status(200).json({ success: true, event: { ...event, image: `${process.env.BACKEND}/events/${event.image}`}});
     } catch (error) {
-        console.error(error)
+        process.env.NODE_ENV === "dev" && console.log(error)
+        next(error)
+    }
+    
+})
+router.get("/:id", async (req:Request | any, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const event = await prisma.event.findUnique({
+            where: {
+                id
+            },
+            include: {
+                author: {
+                    select: {
+                        firstname: true,
+                        lastname: true
+                    }
+                }
+            }
+        });
+        return !event 
+        ? res.status(404).json({ success: false, message: "Event not found"})
+        : res.status(200).json({success: true, event})
+    } catch (error) {
         next(error)
     }
 });
 
 router.get("/", async (req:Request | any, res: Response, next: NextFunction) => {
     try {
-        const events = await prisma.event.findMany();
+        const events = await prisma.event.findMany({
+            include: {
+                author: {
+                    select: {
+                        firstname: true,
+                        lastname: true
+                    }
+                }
+            }
+        });
         res.status(200).json({success: true, events})
     } catch (error) {
         next(error)
     }
-})
+});
+
+
 
 export default router;

@@ -141,3 +141,111 @@ export const generateChangedPasswordEmail = (name: string, link: string) : strin
     </html>    
     `
 }
+
+export const generateAdminEmail = (name: string) : string => {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400..800&family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-200 p-4 text-lg w-full">
+
+
+    <div class="text-lg space-y-4 max-w-[500px] mx-auto space-y-6 " style="font-family: urbanist">
+    <p>A new event was posted with details below: </p>
+    
+    <h1 class="text-2xl">Congrats ${name} !</h1>
+    <p class="my-4 text-justify">You account have been upgraded to Admin</p>
+    </div>
+    </body>
+    </html>    
+    `
+}
+
+export const generateEventEmail = (title: string, description:string, link: string) : string => {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400..800&family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-200 p-4 text-lg w-full">
+
+
+    <div class="text-lg space-y-4 max-w-[500px] mx-auto space-y-6 " style="font-family: urbanist">
+    <p>A new event was posted with details below: </p>
+
+    <h1 class="text-2xl">${title}</h1>
+    <p class="my-4 text-justify">${description}</p>
+    <div class="my-4">
+    <a href="${link}" target="_blank" class="btn bg-blue-400  p-2 px-4 rounded-md text-white font-bold">View more</a>
+    </div>
+    </div>
+
+
+    </body>
+    </html>    
+    `
+}
+
+export const generateUnSubscribeEmail = () : string => {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400..800&family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-200 p-4 text-lg w-full">
+
+
+    <div class="text-lg space-y-4 max-w-[500px] mx-auto space-y-6 " style="font-family: urbanist">
+    <p>A new event was posted with details below: </p>
+
+    <h1 class="text-2xl">Ooops!</h1>
+    <p class="my-4 text-justify">You have been unsubscribed successfully from our domain. If this was a mistake, please visit our website to subscribe</p>
+    <div class="my-4">
+    <a href="${process.env.FRONTEND}" target="_blank" class="btn bg-blue-400  p-2 px-4 rounded-md text-white font-bold">View more</a>
+    </div>
+    </div>
+
+
+    </body>
+    </html>    
+    `
+}
+
+export const generateSubscribeEmail = () : string => {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400..800&family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="bg-gray-200 p-4 text-lg w-full">
+
+
+    <div class="text-lg space-y-4 max-w-[500px] mx-auto space-y-6 " style="font-family: urbanist">
+    <p>A new event was posted with details below: </p>
+
+    <h1 class="text-2xl">Welcome to possiblities</h1>
+    <p class="my-4 text-justify">You have been successfully subsribed to our newsletter. Expect amazing event notification to plunge you into GREATNESS!</p>
+    </div>
+
+
+    </body>
+    </html>    
+    `
+}

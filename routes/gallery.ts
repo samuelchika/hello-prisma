@@ -1,50 +1,84 @@
 import { Response, Request, Router, NextFunction } from "express";
+import { PrismaClient } from "@prisma/client";
+import { authenticated, galleryUpload, isAdmin } from "../middleware";
+import fs from 'fs';
 import path from "path";
-
-
-import {google} from 'googleapis';
-// import * as docs from '@googleapis/docs'
 
 const router = Router();
 
-const KEYFILEPATH = path.join(__dirname, "../cred.json");
-const SCOPE = ["https://www.googleapis.com/auth/drive"];
+const prisma = new PrismaClient();
 
-// eslint-disable-next-line import/no-extraneous-dependencies
-const auth = new google.auth.GoogleAuth({
-    keyFile: KEYFILEPATH,
-    scopes: SCOPE
-});
-
-router.post("/", async (req:Request, res: Response, next: NextFunction) => {
+router.post("/", authenticated, galleryUpload.array('images'), async (req:Request, res: Response, next: NextFunction) => {
     try {
-        const { pageToken } = req.body;
-
-        console.log(pageToken)
-    const drive = google.drive({version: 'v3', auth: auth});
-    const ress = await drive?.files.list({
-        includeDeleted: false,
-        pageSize: 2,
-        pageToken,        
-    });
-    const { nextPageToken, files } = ress.data;
-    console.log(files)
-    // @ts-ignore
-    const images = files.map(file => {
-        return `https://drive.google.com/file/d/${file.id}`
-    })
-    const payload = {
-        images, 
-        pageToken: nextPageToken
-    }
-    // send the nextpage token with the list of image gotten back and use it get the next images
-    
-    res.status(200).json({success: true, payload})
+        // @ts-ignore
+        if(req.files?.length > 0) {
+            const images = req.files;
+            // @ts-ignore
+            await images?.forEach(async ({filename}) => {
+                await prisma.gallery.create({
+                    data: {
+                        image: filename
+                    }
+                });
+            });
+            // @ts-ignore
+            const uploaded = await prisma.gallery.findMany(); // get all the images from the db
+            const gallery = uploaded.sort((a, b): number => {
+                //@ts-ignore
+                return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+            }).map(({id, image}) => ({
+                id, image: `${process.env.BACKEND}/gallery/${image}`
+            })); // generate the image array to be displayed, both Old and new
+            return res.status(200).json({ success: true, gallery})
+        }
+        return res.status(200).json({ success: false, message: "No image was uploaded!"})
     } catch (error) {
+        process.env.NODE_ENV === "dev" && console.log(error)
         next(error)
     }
+});
 
-})
+router.get("/", async (req:Request, res: Response, next: NextFunction) => {
+    try {
+        const uploaded = await prisma.gallery.findMany(); // get all the images from the db
+        console.log(uploaded)
+        const gallery = uploaded.sort((a, b): number => {
+            //@ts-ignore
+            return new Date(b.createdAt) - new Date(a.createdAt);
+        }).map(({id, image }) => ({
+            id, image: `${process.env.BACKEND}/gallery/${image}`
+        })); // generate the image array to be displayed, both Old and new
 
+        return res.status(200).json({ success: true, gallery})
+    } catch (error) {
+        process.env.NODE_ENV === "dev" && console.log(error)
+        next(error)
+    }
+});
+
+router.delete("/:id", authenticated, isAdmin, async (req:Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const fileLocation = path.join(__dirname, "../uploads/gallery/")
+        const image = await prisma.gallery.findUnique({
+            where: {
+                id
+            }
+        });
+        await prisma.gallery.delete({
+            where: {
+                id
+            }
+        });
+        fs.unlink(`${fileLocation}${image?.image}`, (err) => {
+            if (err) throw err;
+            process.env.NODE_ENV === "dev" && console.log(`${fileLocation}${image?.image} was deleted`);
+        });
+        res.status(200).json({ success: true, message: "Image deleted successfully" });
+    } catch (error) {
+        process.env.NODE_ENV === "dev" && console.log(error)
+        res.status(404).json({ success: false, message: "Image does not exist. Please refresh your browser or clear cache"})
+    }
+});
 
 export default router;

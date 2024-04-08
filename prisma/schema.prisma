@@ -42,6 +42,18 @@ model Event {
   updatedAt   DateTime @updatedAt
 }
 
+model Subscribe {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  email       String   @unique
+  createdAt   DateTime @default(now())
+}
+
+model Gallery {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  image       String   
+  createdAt   DateTime @default(now())
+}
+
 enum Role {
   USER
   ADMIN

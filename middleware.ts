@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express"
 import { verifyToken } from "./utils"
+import multer from "multer"
 export const authenticated = async (req: Request | any, res: Response, next: NextFunction) => {
     try {
         console.log(req.headers.authorization.split(" ")[1])
@@ -19,3 +20,33 @@ export const authenticated = async (req: Request | any, res: Response, next: Nex
         return res.status(401).json({ success: false, message: "Please Login"})
     }
 } 
+
+const eventStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/events/');
+    },
+    filename: (req, file, cb) => {
+        const name = file.originalname.includes(" ") ? file.originalname.split(" ").join("") : file.originalname
+        cb(null, Date.now() + '_' + name);
+    }
+});
+
+const galleryStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/gallery/');
+    },
+    filename: (req, file, cb) => {
+        const name = file.originalname.includes(" ") ? file.originalname.split(" ").join("") : file.originalname
+        cb(null, Date.now() + '_' + name);
+    }
+});
+
+export const eventUpload = multer({ storage: eventStorage });
+export const galleryUpload = multer({ storage: galleryStorage });
+
+export const isAdmin = async (req: Request | any, res: Response, next: NextFunction) => {
+    if(req.user.role === "ADMIN") {
+        return next();
+    }
+    return res.status(403).json({ status: false, message: "FORBIDDEN!" });
+}

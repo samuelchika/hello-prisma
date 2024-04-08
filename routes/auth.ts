@@ -1,7 +1,7 @@
 import { Response, Request, Router, NextFunction } from "express";
-import { generateChangePasswordEmail, generateChangedPasswordEmail, generateRegEmail, generateToken, generateValidatedEmail, hashPassword, verifyPassword } from "../utils";
+import { generateChangePasswordEmail, generateChangedPasswordEmail, generateRegEmail, generateAdminEmail, generateToken, generateValidatedEmail, hashPassword, verifyPassword } from "../utils";
 import { PrismaClient, User } from "@prisma/client";
-import { authenticated } from "../middleware";
+import { authenticated, isAdmin } from "../middleware";
 import Email from "../utils/Email";
 import { UserProps } from "../lib";
 
@@ -25,7 +25,6 @@ router.post("/register", async (req:Request, res: Response, next: NextFunction) 
       from: `"RCCG Excel Parish " <${process.env.SMTP_USER}>`, 
       to: req.body.email, 
       subject: "Account Verification 🔓", 
-      text: "Hello world?", 
       html: generateRegEmail(req.body.firstname, `${process.env.FRONTEND}/verify_account/${token}`),
     } 
     const email = new Email();
@@ -59,7 +58,6 @@ router.post("/verify_account", authenticated, async (req:Request | any, res: Res
       from: `"RCCG Excel Parish " <${process.env.SMTP_USER}>`, 
       to: req.user?.email, 
       subject: "Account Verification 🔓", 
-      text: "Hello world?", 
       html: generateValidatedEmail(req.user.firstname),
     } 
 
@@ -70,7 +68,6 @@ router.post("/verify_account", authenticated, async (req:Request | any, res: Res
     next(error)
   }
 })
-
 
 router.post("/login",async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -117,8 +114,7 @@ router.post("/forgot_password", async (req:Request, res: Response, next: NextFun
     const emailOption = {
       from: `"RCCG Excel Parish " <${process.env.SMTP_USER}>`, 
       to: req.body.email, 
-      subject: "Account Verification 🔓", 
-      text: "Hello world?", 
+      subject: "Account Verification 🔓",  
       html: generateChangePasswordEmail(user?.firstname, link),
     } 
     const email = new Email();
@@ -157,8 +153,7 @@ router.post("/change_password", async (req:Request, res: Response, next: NextFun
     const emailOption = {
       from: `"RCCG Excel Parish " <${process.env.SMTP_USER}>`, 
       to: req.body.email, 
-      subject: "Account Verification 🔓", 
-      text: "Hello world?", 
+      subject: "Account Verification 🔓",  
       html: generateChangedPasswordEmail(user.firstname, token),
     } 
     const email = new Email();
@@ -167,7 +162,69 @@ router.post("/change_password", async (req:Request, res: Response, next: NextFun
   } catch (error) {
     next(error)
   }
-} )
+});
+
+router.post("/update_user", authenticated, isAdmin, async (req:Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.body;
+    const user = await prisma.user.update({
+      where: {
+        id
+      },
+      data: {
+        role: "ADMIN"
+      }
+    });
+    const email = new Email();
+    const emailOption = {
+      from: `"RCCG Excel Parish " <${process.env.SMTP_USER}>`, 
+      to: user.email, 
+      subject: "Account Upgraded",  
+      html: generateAdminEmail(user.firstname,),
+    }
+    await email.sendEmail(emailOption);
+    res.status(200).json({ success: true, message: "User upgraded to Admin"})
+  } catch (error) {
+    process.env.NODE_ENV === "dev" && console.log(error)
+    next(error);
+  }
+})
+
+router.get("/users", authenticated, isAdmin, async (req:Request, res: Response, next: NextFunction) => {
+  try {
+    const users  = await prisma.user.findMany({
+      select: {
+        id: true,
+        firstname: true,
+        lastname: true,
+        email: true,
+        phone: true,
+        active: true,
+        createdAt: true,
+        role: true
+      }
+    });
+    res.status(200).json({ success: true, users})
+  } catch (error) {
+    process.env.NODE_ENV === "dev" && console.log(error)
+    next(error)
+  }
+});
+
+router.delete("/user/:id", authenticated, isAdmin, async (req:Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    await prisma.user.delete({
+      where:{
+        id
+      }
+    });
+    res.status(200).json({ success: true, message: "User account deleted!" });
+  } catch (error) {
+    process.env.NODE_ENV === "dev" && console.log(error)
+    next(error)
+  }
+})
 
 
 export default router;
