@@ -1,19 +1,21 @@
 import { Response, Request, Router, NextFunction } from "express";
 import { generateChangePasswordEmail, generateChangedPasswordEmail, generateRegEmail, generateAdminEmail, generateToken, generateValidatedEmail, hashPassword, verifyPassword } from "../utils";
 import { PrismaClient, User } from "@prisma/client";
-import { authenticated, isAdmin } from "../middleware";
+import { authenticated, isAdmin, schemaValidation } from "../middleware";
 import Email from "../utils/Email";
 import { UserProps } from "../lib";
+
 
 const router = Router();
 
 const prisma = new PrismaClient();
-router.post("/register", async (req:Request, res: Response, next: NextFunction) => {
+router.post("/register", schemaValidation(), async (req:Request, res: Response, next: NextFunction) => {
   try {
     console.log(req.body)
     const hashedPassword = await hashPassword(req.body.password);
     console.log(hashedPassword)
     const userData = {...req.body, password: hashedPassword, phone: parseInt(req.body.phone)}
+    delete userData["confirm_password"];
     const user = await prisma.user.create({
       data: {
         ...userData
@@ -63,7 +65,7 @@ router.post("/verify_account", authenticated, async (req:Request | any, res: Res
 
     const email = new Email();
     await email.sendEmail(emailOption);
-    return res.status(201).json({ success: true, message: "User account verified successfully! You can Login now"}) 
+    return res.status(201).json({ success: true, message: "User account verified successfully. You can Login now"}) 
   } catch (error) {
     next(error)
   }
@@ -126,14 +128,17 @@ router.post("/forgot_password", async (req:Request, res: Response, next: NextFun
   }
 });
 
-router.post("/change_password", async (req:Request, res: Response, next: NextFunction) => {
+router.post("/change_password", authenticated,  async (req:Request, res: Response, next: NextFunction) => {
   try {
     // confirm password and confirm password match
     if (req.body.password !== req.body.confirm_password) {
       return res.status(200).json({status: false, message: "Password Mismatch!"})
     }
+    // @ts-ignore
+    console.log(req.user, req.body)
     const user = await prisma.user.findUnique({
-      where: { email: req.body.email}
+      // @ts-ignore
+      where: { email: req.user?.email}
     })
     if(!user) {
       return res.status(200).json({success: true, message: "If your account exist, a reset password link will be sent to you."})
@@ -141,7 +146,8 @@ router.post("/change_password", async (req:Request, res: Response, next: NextFun
     const hashedPassword = await hashPassword(req.body.password)
     await prisma.user.update({
       where: {
-        email: req.body.email
+        // @ts-ignore
+        email: req.user.email
       },
       data: {
         password: hashedPassword
@@ -152,7 +158,8 @@ router.post("/change_password", async (req:Request, res: Response, next: NextFun
     const token = await generateToken({email: req.body.email}, "2 hours");
     const emailOption = {
       from: `"RCCG Excel Parish " <${process.env.SMTP_USER}>`, 
-      to: req.body.email, 
+      // @ts-ignore
+      to: req.user.email, 
       subject: "Account Verification 🔓",  
       html: generateChangedPasswordEmail(user.firstname, token),
     } 

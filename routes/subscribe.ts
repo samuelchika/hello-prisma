@@ -1,5 +1,5 @@
 import { Response, Request, Router, NextFunction } from "express";
-import { PrismaClient, User } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 
 
 import Email from "../utils/Email";

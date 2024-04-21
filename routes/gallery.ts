@@ -8,8 +8,10 @@ const router = Router();
 
 const prisma = new PrismaClient();
 
-router.post("/", authenticated, galleryUpload.array('images'), async (req:Request, res: Response, next: NextFunction) => {
+router.post("/", authenticated, isAdmin,  galleryUpload.array('images'), async (req:Request, res: Response, next: NextFunction) => {
     try {
+        
+        console.log(req.files);
         // @ts-ignore
         if(req.files?.length > 0) {
             const images = req.files;
@@ -21,15 +23,7 @@ router.post("/", authenticated, galleryUpload.array('images'), async (req:Reques
                     }
                 });
             });
-            // @ts-ignore
-            const uploaded = await prisma.gallery.findMany(); // get all the images from the db
-            const gallery = uploaded.sort((a, b): number => {
-                //@ts-ignore
-                return Date.parse(b.createdAt) - Date.parse(a.createdAt);
-            }).map(({id, image}) => ({
-                id, image: `${process.env.BACKEND}/gallery/${image}`
-            })); // generate the image array to be displayed, both Old and new
-            return res.status(200).json({ success: true, gallery})
+            return res.status(200).json({ success: true, message: "Images uploaded successfully"})
         }
         return res.status(200).json({ success: false, message: "No image was uploaded!"})
     } catch (error) {
